@@ -1,73 +1,123 @@
-#define BLYNK_TEMPLATE_ID "TMPL2xsup6xi0"
-#define BLYNK_TEMPLATE_NAME "MonitorarEsp32"
-#define BLYNK_AUTH_TOKEN "QnAPRj2EPd_odGjcHKPhLkBfKEtBoEoZ"
-
 #include <WiFi.h>
-#include <WiFiClient.h>
 #include <BlynkSimpleEsp32.h>
-#include <ArduinoOTA.h>
+
+#include <Wire.h>
+#include <Adafruit_MPU6050.h>
+#include <Adafruit_Sensor.h>
+#include <MAX30100_PulseOximeter.h>
 
 // Wi-Fi
-char ssid[] = "";
-char pass[] = "";
+const char* wifi_ssid = "";
+const char* wifi_password = "";
 
-// LED interno
+// Blynk
+char auth[] = "SEU_TOKEN_BLYNK";
+
+// LED
 const int led_pin = 2;
 
-// Blynk Timer
-BlynkTimer timer;
+// Sensores
+#define SDA_PIN 21
+#define SCL_PIN 22
+Adafruit_MPU6050 mpu;
+PulseOximeter pox;
 
-// Função para enviar dados periodicamente
-void enviarDados() {
-  int batimentos = random(0, 100);
-  int oximetria = random(0, 100);
-  int aceleracao = random(0, 10);
-  int rotacao = random(0, 10);
+// Controle de tempo
+unsigned long ultima_leitura = 0;
+const unsigned long intervalo_leitura = 2000;
 
-  Serial.println("Enviando dados para Blynk...");
+unsigned long ultimo_alerta = 0;
+const unsigned long intervalo_alerta = 60000;  // 1 minuto entre alertas
 
-  // Envia os dados para os pinos virtuais
-  Blynk.virtualWrite(V0, batimentos);
-  Blynk.virtualWrite(V1, oximetria);
-  Blynk.virtualWrite(V2, aceleracao);
-  Blynk.virtualWrite(V3, rotacao);
+// Controle de envio de dados
+bool enviar_dados = true;
 
-  // Envia para o Terminal no App (opcional)
-  Blynk.virtualWrite(V10, String("Batimentos: ") + batimentos + 
-                               ", Oximetria: " + oximetria + 
-                               ", Aceleração: " + aceleracao + 
-                               ", Rotação: " + rotacao);
-
-  // Alertas
-  if (batimentos < 5) {
-    Blynk.logEvent("batimentos_baixos", "Batimentos abaixo do normal!");
-  
-  }
-  if (batimentos > 95) {
-    Blynk.logEvent("batimentos_altos", "Batimentos acima do normal!");
-  }
-  if (aceleracao == 0) {
-    Blynk.logEvent("queda_detectada", "Possível queda detectada!");
- 
-  }
+BLYNK_WRITE(V0) {
+  int estado = param.asInt();
+  enviar_dados = (estado == 1);
+  Serial.println(enviar_dados ? "Envio de dados ATIVADO" : "Envio de dados DESATIVADO");
 }
 
 void setup() {
   Serial.begin(115200);
   pinMode(led_pin, OUTPUT);
-  digitalWrite(led_pin, LOW);
 
-  // Conectar ao Blynk
-  Blynk.begin(BLYNK_AUTH_TOKEN, ssid, pass);
-  ArduinoOTA.begin();
-  Serial.println("OTA pronto");
+  WiFi.begin(wifi_ssid, wifi_password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+    digitalWrite(led_pin, LOW);
+  }
+  Serial.println("\nWi-Fi conectado!");
+  digitalWrite(led_pin, HIGH);
 
-  // Timer a cada 2 segundos
-  timer.setInterval(2000L, enviarDados);
+  Blynk.begin(auth, wifi_ssid, wifi_password);
+  Blynk.syncVirtual(V0);  // Sincroniza estado do botão
+
+  Wire.begin(SDA_PIN, SCL_PIN);
+
+  Serial.println("Inicializando MPU6050...");
+  if (!mpu.begin()) {
+    Serial.println("Erro: MPU6050 não encontrado.");
+    while (true);
+  }
+
+  Serial.println("Inicializando MAX30100...");
+  if (!pox.begin()) {
+    Serial.println("Erro: MAX30100 não encontrado.");
+    while (true);
+  }
+  pox.setIRLedCurrent(MAX30100_LED_CURR_24MA);
 }
 
 void loop() {
   Blynk.run();
-  timer.run();
-  ArduinoOTA.handle();
+  pox.update();
+
+  if (!enviar_dados) return;  // Interrompe a transmissão se o botão estiver desligado
+
+  if (millis() - ultima_leitura > intervalo_leitura) {
+    ultima_leitura = millis();
+
+    float batimentos = pox.getHeartRate();
+    float oximetria = pox.getSpO2();
+
+    sensors_event_t a, g, temp;
+    mpu.getEvent(&a, &g, &temp);
+
+    float aceleracao_total = sqrt(pow(a.acceleration.x, 2) +
+                                  pow(a.acceleration.y, 2) +
+                                  pow(a.acceleration.z, 2));
+
+    float rotacao_total = sqrt(pow(g.gyro.x, 2) +
+                               pow(g.gyro.y, 2) +
+                               pow(g.gyro.z, 2));
+
+    Serial.println("Enviando dados ao Blynk...");
+    Blynk.virtualWrite(V1, batimentos);
+    Blynk.virtualWrite(V2, oximetria);
+    Blynk.virtualWrite(V3, aceleracao_total);
+    Blynk.virtualWrite(V4, rotacao_total);
+
+    // ALERTAS com intervalo de segurança
+    if (millis() - ultimo_alerta > intervalo_alerta) {
+      if (batimentos < 50) {
+        Blynk.logEvent("batimento_baixo", "Batimentos abaixo do normal (< 50 bpm)");
+        ultimo_alerta = millis();
+      } else if (batimentos > 150) {
+        Blynk.logEvent("batimento_alto", "Batimentos acima do normal (> 150 bpm)");
+        ultimo_alerta = millis();
+      }
+
+      if (oximetria < 90) {
+        Blynk.logEvent("oximetria_baixa", "Oximetria baixa detectada (< 90%)");
+        ultimo_alerta = millis();
+      }
+
+      if (aceleracao_total < 0.3) {
+        Blynk.logEvent("queda_detectada", "Possível queda detectada");
+        ultimo_alerta = millis();
+      }
+    }
+  }
 }
