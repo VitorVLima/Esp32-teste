@@ -12,8 +12,8 @@
 #include <MAX30100_PulseOximeter.h>
 
 // Wi-Fi
-const char* wifi_ssid = "Viviane";
-const char* wifi_password = "92938727";
+const char* wifi_ssid = "";
+const char* wifi_password = "";
 
 // LED
 const int led_pin = 2;
