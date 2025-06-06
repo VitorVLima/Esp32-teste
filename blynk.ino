@@ -120,20 +120,20 @@ void loop() {
     // Verifica alertas
     if (agora - ultimo_alerta > intervalo_alerta) {
       if (batimentos < 50) {
-        Blynk.logEvent("batimento_baixo", "Batimentos abaixo do normal (< 50 bpm)");
+        Blynk.logEvent("alerta", "Batimentos abaixo do normal (< 50 bpm)");
         ultimo_alerta = agora;
       } else if (batimentos > 150) {
-        Blynk.logEvent("batimento_alto", "Batimentos acima do normal (> 150 bpm)");
+        Blynk.logEvent("alerta", "Batimentos acima do normal (> 150 bpm)");
         ultimo_alerta = agora;
       }
 
       if (oximetria < 90) {
-        Blynk.logEvent("oximetria_baixa", "Oximetria baixa detectada (< 90%)");
+        Blynk.logEvent("alerta", "Oximetria baixa detectada (< 90%)");
         ultimo_alerta = agora;
       }
 
       if (aceleracao_total < 0.3) {
-        Blynk.logEvent("queda_detectada", "Possível queda detectada");
+        Blynk.logEvent("alerta", "Possível queda detectada");
         ultimo_alerta = agora;
       }
     }
