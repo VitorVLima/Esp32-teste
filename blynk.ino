@@ -136,7 +136,24 @@ void loop() {
         Blynk.logEvent("alerta", "Possível queda detectada");
         ultimo_alerta = agora;
       }
-    }
+
+      // Detecta queda livre
+      /*if (!em_queda && aceleracao_total < 3.0) {  // 3 m/s² ≈ 0.3 g
+        em_queda = true;
+        tempo_queda = agora;
+      }
+
+      // Verifica impacto após a queda livre
+      if (em_queda && (agora - tempo_queda) < 1000) {
+        if (aceleracao_total > 20.0) {  // impacto forte
+          Blynk.logEvent("alerta", "Possível queda detectada");
+          ultimo_alerta = agora;
+          em_queda = false;
+        }
+      } else {
+        em_queda = false;
+      }
+    } */
 
     // Envia os dados apenas a cada 10 segundos
     if (agora - ultimo_envio > intervalo_envio) {
