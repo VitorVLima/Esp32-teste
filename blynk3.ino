@@ -1,7 +1,7 @@
 // Definições obrigatórias para o Blynk 2.0
-#define BLYNK_TEMPLATE_ID "TMPL2xsup6xi0"
-#define BLYNK_TEMPLATE_NAME "MonitorarEsp32"
-#define BLYNK_AUTH_TOKEN "QnAPRj2EPd_odGjcHKPhLkBfKEtBoEoZ"
+#define BLYNK_TEMPLATE_ID "TMPL2vDZ45Qwz"
+#define BLYNK_TEMPLATE_NAME "vitor"
+#define BLYNK_AUTH_TOKEN "asrOcmhW7k3g1I3gUITYsMwKOmrcg6sa" 
 
 #include <WiFi.h>
 #include <BlynkSimpleEsp32.h>
